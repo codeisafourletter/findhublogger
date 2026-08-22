@@ -24,9 +24,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: cloud/package-lock.json
-      - run: npm ci --omit=dev --no-audit --no-fund
+      - run: npm install --omit=dev --no-audit --no-fund
       - name: Collect Find Hub location
         run: node run-once.mjs
         env:
