@@ -1,9 +1,10 @@
 import { chromium } from "playwright";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join } from "node:path";
 
 const FIND_HUB_URL = process.env.FIND_HUB_URL || "https://www.google.com/android/find/people";
 const TARGET_PERSON = process.env.TARGET_PERSON || "Meme";
-const profileDir = fileURLToPath(new URL("./chrome-auth-profile", import.meta.url));
+const profileDir = process.env.FINDHUB_PROFILE_DIR || join(homedir(), ".findhublogger", "chrome-auth-profile");
 
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: "chrome",
@@ -29,7 +30,7 @@ try {
     throw new Error(`Find Hub is signed in, but ${TARGET_PERSON} is not visible. Confirm the correct Google account and location share.`);
   }
 
-  console.log("Persistent Find Hub profile verified. Keep this profile on the same machine as the self-hosted runner.");
+  console.log(`Persistent Find Hub profile verified at ${profileDir}.`);
 } finally {
   await context.close();
 }
