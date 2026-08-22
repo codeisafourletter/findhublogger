@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium } from "playwright-core";
 import { coordinatesFromHref, detailsFromLines } from "./collector-core.mjs";
 
 const FIND_HUB_URL = process.env.FIND_HUB_URL || "https://www.google.com/android/find/people";
@@ -6,6 +6,7 @@ const TARGET_PERSON = process.env.TARGET_PERSON || "Meme";
 const SHEET_ENDPOINT = required("SHEET_ENDPOINT");
 const SHEET_SECRET = required("SHEET_SECRET");
 const AUTH_STATE_B64 = required("AUTH_STATE_B64");
+const CHROME_BIN = process.env.CHROME_BIN || "/usr/bin/google-chrome";
 
 function required(name) {
   const value = process.env[name];
@@ -14,7 +15,11 @@ function required(name) {
 }
 
 const storageState = JSON.parse(Buffer.from(AUTH_STATE_B64, "base64").toString("utf8"));
-const browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage", "--no-sandbox"] });
+const browser = await chromium.launch({
+  executablePath: CHROME_BIN,
+  headless: true,
+  args: ["--disable-dev-shm-usage", "--no-sandbox"]
+});
 
 try {
   const context = await browser.newContext({ storageState, locale: "en-US" });
@@ -45,7 +50,8 @@ try {
     const response = await fetch(SHEET_ENDPOINT, {
       method: "POST",
       headers: { "content-type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ secret: SHEET_SECRET, records: [record] })
+      body: JSON.stringify({ secret: SHEET_SECRET, records: [record] }),
+      signal: AbortSignal.timeout(15000)
     });
     if (!response.ok) throw new Error(`Sheet endpoint returned HTTP ${response.status}`);
     const result = await response.json();
