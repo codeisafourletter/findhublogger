@@ -33,6 +33,18 @@ async function probeSheetEndpoint() {
   checks.sheet_endpoint = true;
 }
 
+async function findTargetText(page) {
+  const exact = page.getByText(TARGET_PERSON, { exact: true }).first();
+  try {
+    await exact.waitFor({ state: "visible", timeout: 15000 });
+    return exact;
+  } catch {
+    const partial = page.getByText(TARGET_PERSON, { exact: false }).first();
+    await partial.waitFor({ state: "visible", timeout: 15000 });
+    return partial;
+  }
+}
+
 let browser;
 try {
   await probeSheetEndpoint();
@@ -53,23 +65,28 @@ try {
   }
   checks.auth_session = true;
 
-  const card = page.locator('[role="button"]').filter({ hasText: TARGET_PERSON }).first();
-  await card.waitFor({ state: "visible", timeout: 30000 });
+  const target = await findTargetText(page);
   checks.target_card = true;
+  await target.click();
 
-  if (/Location not available/i.test(await card.innerText())) {
-    console.log(JSON.stringify({ ok: true, checks, status: "location_not_available" }));
-    process.exitCode = 0;
-  } else {
-    await card.click();
-    const directions = page.locator('a[href*="maps/dir/"][href*="destination="]').first();
-    await directions.waitFor({ state: "visible", timeout: 30000 });
+  const directions = page.locator('a[href*="maps/dir/"][href*="destination="]').first();
+  try {
+    await directions.waitFor({ state: "visible", timeout: 20000 });
+  } catch (error) {
+    const unavailable = page.getByText(/Location not available/i).first();
+    if (await unavailable.isVisible().catch(() => false)) {
+      console.log(JSON.stringify({ ok: true, checks, status: "location_not_available" }));
+      process.exitCode = 0;
+    } else {
+      throw error;
+    }
+  }
+
+  if (process.exitCode !== 0) {
     checks.directions_link = true;
-
     const coordinates = coordinatesFromHref(await directions.getAttribute("href"));
     if (!coordinates) throw new Error("Find Hub detail page did not expose parseable coordinates");
     checks.coordinates = true;
-
     console.log(JSON.stringify({ ok: true, checks, status: "ready" }));
   }
 } catch (error) {
