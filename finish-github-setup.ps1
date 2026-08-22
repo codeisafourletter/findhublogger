@@ -51,21 +51,15 @@ $sheetSecret = Require-Value 'SHEET_SECRET' $sheetSecret
 Set-Location -LiteralPath $cloudDir
 & $pnpm install
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed.' }
+
 & $node (Join-Path $cloudDir 'bootstrap-auth.mjs')
-if ($LASTEXITCODE -ne 0) { throw 'Google authentication bootstrap failed.' }
+if ($LASTEXITCODE -ne 0) { throw 'Find Hub authentication bootstrap failed.' }
 
-$authPath = Join-Path $cloudDir 'auth-state.json'
-if (!(Test-Path -LiteralPath $authPath)) {
-  throw 'Authentication state was not created.'
-}
-$authState = [Convert]::ToBase64String([IO.File]::ReadAllBytes($authPath))
-
-$authState | gh secret set AUTH_STATE_B64 --repo $repo
-if ($LASTEXITCODE -ne 0) { throw 'Failed to set AUTH_STATE_B64.' }
 $sheetEndpoint | gh secret set SHEET_ENDPOINT --repo $repo
 if ($LASTEXITCODE -ne 0) { throw 'Failed to set SHEET_ENDPOINT.' }
 $sheetSecret | gh secret set SHEET_SECRET --repo $repo
 if ($LASTEXITCODE -ne 0) { throw 'Failed to set SHEET_SECRET.' }
 
-Write-Host 'Google session and all required GitHub secrets are configured.' -ForegroundColor Green
+Write-Host 'Find Hub profile is authenticated locally and sheet secrets are configured.' -ForegroundColor Green
+Write-Host 'The scheduled workflow must run on this same Windows machine through a GitHub self-hosted runner labeled findhub.' -ForegroundColor Yellow
 Read-Host 'Press Enter to close'
