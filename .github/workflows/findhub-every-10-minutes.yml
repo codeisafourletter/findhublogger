@@ -11,6 +11,7 @@ on:
 
 permissions:
   contents: read
+  issues: write
 
 concurrency:
   group: findhub-collector-${{ github.event_name }}
@@ -44,6 +45,13 @@ jobs:
         working-directory: cloud
     steps:
       - uses: actions/checkout@v4
+      - name: Record collector heartbeat
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue edit 4 --repo "$GITHUB_REPOSITORY" --body "Last collector trigger: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
       - uses: actions/setup-node@v4
         with:
           node-version: 22
