@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   collect:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 8
     defaults:
       run:
@@ -24,11 +24,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --omit=dev
-      - run: npx playwright install --with-deps chromium
+      - run: npm install --omit=dev --no-audit --no-fund
       - run: node run-once.mjs
         env:
           AUTH_STATE_B64: ${{ secrets.AUTH_STATE_B64 }}
           SHEET_ENDPOINT: ${{ secrets.SHEET_ENDPOINT }}
           SHEET_SECRET: ${{ secrets.SHEET_SECRET }}
           TARGET_PERSON: Meme
+          CHROME_BIN: /usr/bin/google-chrome
