@@ -62,6 +62,6 @@ Then complete Google sign-in again.
 
 Pull requests run syntax/installation validation on GitHub-hosted runners. Scheduled and manually dispatched production collection jobs require the persistent runner labels:
 
-`self-hosted`, `Windows`, `X64`, `findhub`
+`self-hosted`, `Windows`, `X64`, `findhub`, `cloud`
 
 If that cloud VM is offline, scheduled collection cannot run until the runner returns online.
