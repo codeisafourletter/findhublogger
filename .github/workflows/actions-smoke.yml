@@ -1,0 +1,24 @@
+name: Actions smoke
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/actions-smoke.yml"
+
+permissions:
+  issues: write
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Update heartbeat
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue edit 4 --repo "$GITHUB_REPOSITORY" --body "Minimal Actions smoke: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
