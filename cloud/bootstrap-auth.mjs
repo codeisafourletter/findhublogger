@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium } from "playwright-core";
 import { fileURLToPath } from "node:url";
 
 const profileDir = fileURLToPath(new URL("./chrome-auth-profile", import.meta.url));
