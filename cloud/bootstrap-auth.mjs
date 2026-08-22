@@ -1,7 +1,7 @@
 import { chromium } from "playwright";
-import { writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
 
-const profileDir = new URL("./chrome-auth-profile", import.meta.url).pathname.replace(/^\/(.:)/, "$1");
+const profileDir = fileURLToPath(new URL("./chrome-auth-profile", import.meta.url));
 const context = await chromium.launchPersistentContext(profileDir, {
   channel: "chrome",
   headless: false,
@@ -18,6 +18,6 @@ if (/accounts\.google\.com/.test(page.url())) {
   await context.close();
   throw new Error("Sign-in was not completed");
 }
-await context.storageState({ path: new URL("./auth-state.json", import.meta.url), indexedDB: true });
+await context.storageState({ path: fileURLToPath(new URL("./auth-state.json", import.meta.url)), indexedDB: true });
 await context.close();
 console.log("Saved cloud/auth-state.json. Treat this file like a password; it is excluded from Git.");
