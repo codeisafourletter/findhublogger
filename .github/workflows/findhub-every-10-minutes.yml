@@ -4,17 +4,56 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+  pull_request:
+    branches:
+      - main
 
 permissions:
   contents: read
 
 concurrency:
-  group: findhub-collector
+  group: findhub-collector-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
-  collect:
+  validate:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    timeout-minutes: 3
+    defaults:
+      run:
+        working-directory: cloud
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --omit=dev --no-audit --no-fund
+      - name: Syntax check collector
+        run: node --check run-once.mjs
+      - name: Syntax check authentication bootstrap
+        run: node --check bootstrap-auth.mjs
+      - name: Syntax check collector helpers
+        run: node --check collector-core.mjs
+      - name: Syntax check PowerShell setup scripts
+        working-directory: .
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in @('finish-github-setup.ps1', 'setup-self-hosted-runner.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error "${file}: $($_.Message)" }
+            }
+          }
+          if ($failed) { exit 1 }
+
+  collect:
+    if: github.event_name != 'pull_request'
+    runs-on: [self-hosted, Windows, X64, findhub, cloud]
     timeout-minutes: 8
     defaults:
       run:
@@ -24,11 +63,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install --omit=dev
-      - run: npx playwright install --with-deps chromium
+      - run: npm install --omit=dev --no-audit --no-fund
       - run: node run-once.mjs
         env:
-          AUTH_STATE_B64: ${{ secrets.AUTH_STATE_B64 }}
           SHEET_ENDPOINT: ${{ secrets.SHEET_ENDPOINT }}
           SHEET_SECRET: ${{ secrets.SHEET_SECRET }}
           TARGET_PERSON: Meme
