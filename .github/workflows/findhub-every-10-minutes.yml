@@ -35,6 +35,21 @@ jobs:
         run: node --check bootstrap-auth.mjs
       - name: Syntax check collector helpers
         run: node --check collector-core.mjs
+      - name: Syntax check PowerShell setup scripts
+        working-directory: .
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in @('finish-github-setup.ps1', 'setup-self-hosted-runner.ps1')) {
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count -gt 0) {
+              $failed = $true
+              $errors | ForEach-Object { Write-Error "$file: $($_.Message)" }
+            }
+          }
+          if ($failed) { exit 1 }
 
   collect:
     if: github.event_name != 'pull_request'
