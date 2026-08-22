@@ -1,12 +1,13 @@
 import { chromium } from "playwright";
-import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { coordinatesFromHref, detailsFromLines } from "./collector-core.mjs";
 
 const FIND_HUB_URL = process.env.FIND_HUB_URL || "https://www.google.com/android/find/people";
 const TARGET_PERSON = process.env.TARGET_PERSON || "Meme";
 const SHEET_ENDPOINT = required("SHEET_ENDPOINT");
 const SHEET_SECRET = required("SHEET_SECRET");
-const profileDir = fileURLToPath(new URL("./chrome-auth-profile", import.meta.url));
+const profileDir = process.env.FINDHUB_PROFILE_DIR || join(homedir(), ".findhublogger", "chrome-auth-profile");
 
 function required(name) {
   const value = process.env[name];
@@ -40,7 +41,7 @@ try {
 
   const body = await page.locator("body").innerText();
   if (/accounts\.google\.com/.test(page.url()) || /(^|\n)\s*Sign in\s*(\n|$)/i.test(body)) {
-    throw new Error("Find Hub profile is not authenticated on this runner. Run npm run auth on this same machine and Windows account.");
+    throw new Error(`Find Hub profile is not authenticated on this runner. Run npm run auth under the same Windows account. Profile: ${profileDir}`);
   }
 
   const target = await targetLocator(page);
