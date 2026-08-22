@@ -2,10 +2,14 @@ $ErrorActionPreference = 'Stop'
 
 $repo = 'codeisafourletter/findhublogger'
 $repoUrl = "https://github.com/$repo"
-$runnerRoot = Join-Path $env:USERPROFILE 'actions-runner-findhub'
-$runnerName = "findhub-$env:COMPUTERNAME"
-$startupDir = [Environment]::GetFolderPath('Startup')
-$startupLink = Join-Path $startupDir 'Find Hub GitHub Runner.lnk'
+$runnerRoot = 'C:\actions-runner-findhub'
+$runnerName = "findhub-cloud-$env:COMPUTERNAME"
+$windowsAccount = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (!$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+  throw 'Run this setup from an Administrator PowerShell session on the persistent cloud Windows VM.'
+}
 
 if (!(Get-Command gh -ErrorAction SilentlyContinue)) {
   throw 'GitHub CLI (gh) was not found.'
@@ -17,9 +21,8 @@ if ($LASTEXITCODE -ne 0) {
 
 New-Item -ItemType Directory -Force -Path $runnerRoot | Out-Null
 $configCmd = Join-Path $runnerRoot 'config.cmd'
-$runCmd = Join-Path $runnerRoot 'run.cmd'
 
-if (!(Test-Path -LiteralPath $configCmd) -or !(Test-Path -LiteralPath $runCmd)) {
+if (!(Test-Path -LiteralPath $configCmd)) {
   Write-Host 'Downloading the latest GitHub Actions runner for Windows x64...'
   $release = Invoke-RestMethod -Uri 'https://api.github.com/repos/actions/runner/releases/latest' -Headers @{ 'User-Agent' = 'findhublogger-setup' }
   $asset = $release.assets | Where-Object { $_.name -match '^actions-runner-win-x64-.*\.zip$' } | Select-Object -First 1
@@ -33,41 +36,47 @@ if (!(Test-Path -LiteralPath $configCmd) -or !(Test-Path -LiteralPath $runCmd)) 
 
 $runnerConfig = Join-Path $runnerRoot '.runner'
 if (!(Test-Path -LiteralPath $runnerConfig)) {
-  Write-Host 'Registering this computer as the Find Hub self-hosted runner...'
-  $token = (& gh api --method POST "repos/$repo/actions/runners/registration-token" --jq '.token').Trim()
-  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
-    throw 'Could not obtain a GitHub runner registration token.'
-  }
+  Write-Host "Registering this persistent cloud VM as '$runnerName'..."
+  Write-Host "The runner service will use $windowsAccount so Chrome can reuse that account's persistent Find Hub profile." -ForegroundColor Yellow
 
-  Push-Location $runnerRoot
+  $securePassword = Read-Host "Windows password for $windowsAccount (used only to install the runner service)" -AsSecureString
+  $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
+  $plainPassword = $null
   try {
-    & $configCmd --url $repoUrl --token $token --name $runnerName --labels findhub --work '_work' --unattended --replace
-    if ($LASTEXITCODE -ne 0) { throw 'GitHub Actions runner registration failed.' }
+    $plainPassword = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr)
+    if ([string]::IsNullOrWhiteSpace($plainPassword)) { throw 'Windows account password is required.' }
+
+    $token = (& gh api --method POST "repos/$repo/actions/runners/registration-token" --jq '.token').Trim()
+    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($token)) {
+      throw 'Could not obtain a GitHub runner registration token.'
+    }
+
+    Push-Location $runnerRoot
+    try {
+      & $configCmd --url $repoUrl --token $token --name $runnerName --labels findhub,cloud --work '_work' --unattended --replace --runasservice --windowslogonaccount $windowsAccount --windowslogonpassword $plainPassword
+      if ($LASTEXITCODE -ne 0) { throw 'GitHub Actions runner registration failed.' }
+    }
+    finally {
+      Pop-Location
+    }
   }
   finally {
-    Pop-Location
+    if ($ptr -ne [IntPtr]::Zero) { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
+    $plainPassword = $null
+    $securePassword = $null
   }
 }
 
-# Start the runner automatically whenever this Windows user signs in. Running it
-# under the same user is intentional: Google session binding and the Find Hub
-# Chrome profile are tied to this machine/user context.
-$wsh = New-Object -ComObject WScript.Shell
-$shortcut = $wsh.CreateShortcut($startupLink)
-$shortcut.TargetPath = $env:ComSpec
-$shortcut.Arguments = "/c `"`"$runCmd`"`""
-$shortcut.WorkingDirectory = $runnerRoot
-$shortcut.WindowStyle = 7
-$shortcut.Description = 'Start the Find Hub GitHub Actions self-hosted runner'
-$shortcut.Save()
-
-$alreadyRunning = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-  $_.CommandLine -and $_.CommandLine.Contains($runnerRoot) -and ($_.CommandLine.Contains('Runner.Listener') -or $_.CommandLine.Contains('run.cmd'))
+$service = Get-Service 'actions.runner.*' -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*.$runnerName.service" } | Select-Object -First 1
+if (!$service) {
+  $service = Get-Service 'actions.runner.*' -ErrorAction SilentlyContinue | Select-Object -First 1
 }
-if (!$alreadyRunning) {
-  Start-Process -FilePath $runCmd -WorkingDirectory $runnerRoot -WindowStyle Minimized
-}
+if (!$service) { throw 'Runner registration completed but the Windows service was not found.' }
 
-Write-Host "Self-hosted runner '$runnerName' is configured with label 'findhub'." -ForegroundColor Green
+Set-Service -Name $service.Name -StartupType Automatic
+if ($service.Status -ne 'Running') { Start-Service -Name $service.Name }
+
+Write-Host "Cloud runner '$runnerName' is configured as an automatic Windows service." -ForegroundColor Green
+Write-Host "Runner service account: $windowsAccount"
 Write-Host "Runner files: $runnerRoot"
-Write-Host 'It will start again when this Windows user signs in.'
+Write-Host 'The VM can remain unattended; it does not require an active RDP session after setup.'
