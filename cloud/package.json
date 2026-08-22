@@ -4,11 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.mjs",
     "auth": "node bootstrap-auth.mjs",
     "test": "node --test"
   },
   "dependencies": {
-    "playwright": "1.55.0"
+    "playwright-core": "1.62.1"
   }
 }
