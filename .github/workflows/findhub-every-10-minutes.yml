@@ -30,6 +30,8 @@ jobs:
         with:
           node-version: 22
       - run: npm install --omit=dev --no-audit --no-fund
+      - name: Check collector syntax
+        run: node --check run-once.mjs
       - name: Verify runner Chrome
         run: node --input-type=module -e 'import { chromium } from "playwright-core"; const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true, args: ["--no-sandbox"] }); const page = await browser.newPage(); await page.goto("data:text/html,ok"); await browser.close(); console.log("runner chrome ok");'
 
