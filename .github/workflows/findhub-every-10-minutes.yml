@@ -18,7 +18,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 2
+    timeout-minutes: 8
     steps:
       - name: Validate required secrets
         shell: bash
@@ -35,6 +35,34 @@ jobs:
             fi
           done
           exit "$missing"
+
+      - uses: actions/checkout@v4
+        if: github.event_name == 'pull_request'
+
+      - uses: actions/setup-node@v4
+        if: github.event_name == 'pull_request'
+        with:
+          node-version: 22
+
+      - name: Install diagnostic dependencies
+        if: github.event_name == 'pull_request'
+        working-directory: cloud
+        run: npm install --omit=dev --no-audit --no-fund
+
+      - name: Install Chromium for diagnostic
+        if: github.event_name == 'pull_request'
+        working-directory: cloud
+        run: npx playwright install --with-deps chromium
+
+      - name: Run non-writing collector diagnostic
+        if: github.event_name == 'pull_request'
+        working-directory: cloud
+        env:
+          AUTH_STATE_B64: ${{ secrets.AUTH_STATE_B64 }}
+          SHEET_ENDPOINT: ${{ secrets.SHEET_ENDPOINT }}
+          SHEET_SECRET: ${{ secrets.SHEET_SECRET }}
+          TARGET_PERSON: Meme
+        run: node diagnose.mjs
 
   collect:
     if: github.event_name != 'pull_request'
