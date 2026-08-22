@@ -8,6 +8,7 @@ $pnpm = Join-Path $runtimeRoot 'bin\fallback\pnpm.cmd'
 if (!(Test-Path -LiteralPath $node) -or !(Test-Path -LiteralPath $pnpm)) {
   throw 'Codex bundled Node runtime was not found.'
 }
+$env:PATH = "$(Split-Path -Parent $node);$(Join-Path $runtimeRoot 'bin\override');$(Join-Path $runtimeRoot 'bin\fallback');$env:PATH"
 
 Set-Location -LiteralPath $cloudDir
 & $pnpm install
