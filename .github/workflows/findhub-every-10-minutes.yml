@@ -8,6 +8,11 @@ on:
     paths:
       - "cloud/**"
       - ".github/workflows/findhub-every-10-minutes.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/findhub-every-10-minutes.yml"
 
 permissions:
   contents: read
@@ -36,8 +41,21 @@ jobs:
       - name: Verify runner Chrome
         run: node --input-type=module -e 'import { chromium } from "playwright-core"; const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true, args: ["--no-sandbox"] }); const page = await browser.newPage(); await page.goto("data:text/html,ok"); await browser.close(); console.log("runner chrome ok");'
 
+  diagnostic:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 2
+    steps:
+      - name: Record Actions push heartbeat
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh issue edit 4 --repo "$GITHUB_REPOSITORY" --body "Actions push diagnostic: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+
+          Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
   collect:
-    if: github.event_name != 'pull_request'
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     defaults:
