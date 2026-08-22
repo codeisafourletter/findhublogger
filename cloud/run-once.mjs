@@ -15,15 +15,12 @@ function required(name) {
 }
 
 const storageState = JSON.parse(Buffer.from(AUTH_STATE_B64, "base64").toString("utf8"));
-const browser = await chromium.launch({
-  executablePath: CHROME_BIN,
-  headless: true,
-  args: ["--disable-dev-shm-usage", "--no-sandbox"]
-});
+const browser = await chromium.launch({ executablePath: CHROME_BIN, headless: true, args: ["--disable-dev-shm-usage", "--no-sandbox"] });
+let page;
 
 try {
   const context = await browser.newContext({ storageState, locale: "en-US" });
-  const page = await context.newPage();
+  page = await context.newPage();
   await page.goto(FIND_HUB_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
   if (/accounts\.google\.com/.test(page.url())) throw new Error("Google session expired; refresh AUTH_STATE_B64");
 
@@ -31,33 +28,28 @@ try {
   await card.waitFor({ state: "visible", timeout: 30000 });
   if (/Location not available/i.test(await card.innerText())) {
     console.log(JSON.stringify({ ok: true, appended: 0, reason: "Location not available" }));
-    process.exitCode = 0;
   } else {
     await card.click();
     const directions = page.locator('a[href*="maps/dir/"][href*="destination="]').first();
     await directions.waitFor({ state: "visible", timeout: 30000 });
     const coordinates = coordinatesFromHref(await directions.getAttribute("href"));
     if (!coordinates) throw new Error("Find Hub detail page did not expose coordinates");
-
     const details = detailsFromLines((await page.locator("body").innerText()).split("\n"), TARGET_PERSON);
-    const record = {
-      captured_at: new Date().toISOString(),
-      person: TARGET_PERSON,
-      latitude: coordinates.latitude,
-      longitude: coordinates.longitude,
-      ...details
-    };
-    const response = await fetch(SHEET_ENDPOINT, {
-      method: "POST",
-      headers: { "content-type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ secret: SHEET_SECRET, records: [record] }),
-      signal: AbortSignal.timeout(15000)
-    });
+    const record = { captured_at: new Date().toISOString(), person: TARGET_PERSON, latitude: coordinates.latitude, longitude: coordinates.longitude, ...details };
+    const response = await fetch(SHEET_ENDPOINT, { method: "POST", headers: { "content-type": "text/plain;charset=utf-8" }, body: JSON.stringify({ secret: SHEET_SECRET, records: [record] }), signal: AbortSignal.timeout(15000) });
     if (!response.ok) throw new Error(`Sheet endpoint returned HTTP ${response.status}`);
     const result = await response.json();
     if (!result.ok) throw new Error(result.error || "Sheet endpoint rejected the record");
     console.log(JSON.stringify({ ok: true, appended: result.appended ?? 1, captured_at: record.captured_at }));
   }
+} catch (error) {
+  if (page) {
+    const title = await page.title().catch(() => "");
+    const text = await page.locator("body").innerText({ timeout: 3000 }).catch(() => "");
+    const clues = text.replace(/\s+/g, " ").slice(0, 1500);
+    console.error("COLLECTOR_DIAGNOSTIC", JSON.stringify({ url: page.url(), title, clues }));
+  }
+  throw error;
 } finally {
   await browser.close();
 }
