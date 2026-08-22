@@ -12,7 +12,6 @@ $env:PATH = "$(Split-Path -Parent $node);$(Join-Path $runtimeRoot 'bin\override'
 
 Set-Location -LiteralPath $cloudDir
 & $pnpm install
-& $pnpm exec playwright install chromium
 & $node (Join-Path $cloudDir 'bootstrap-auth.mjs')
 
 $authPath = Join-Path $cloudDir 'auth-state.json'
