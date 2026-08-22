@@ -45,7 +45,29 @@ async function findTargetText(page) {
   }
 }
 
+async function safePageState(page) {
+  if (!page) return null;
+  const body = await page.locator("body").innerText().catch(() => "");
+  let url = page.url();
+  try {
+    const parsed = new URL(url);
+    url = `${parsed.origin}${parsed.pathname}`;
+  } catch {}
+  return {
+    url,
+    text_length: body.length,
+    has_target_text: body.includes(TARGET_PERSON),
+    has_people: /\bPeople\b/i.test(body),
+    has_devices: /\bDevices\b/i.test(body),
+    has_sign_in: /\bSign in\b/i.test(body),
+    has_verify_identity: /verify (?:it'?s )?you|verify your identity/i.test(body),
+    has_location_not_available: /Location not available/i.test(body),
+    has_enable_javascript: /enable JavaScript/i.test(body)
+  };
+}
+
 let browser;
+let page;
 try {
   await probeSheetEndpoint();
 
@@ -58,7 +80,7 @@ try {
 
   browser = await chromium.launch({ headless: true, args: ["--disable-dev-shm-usage", "--no-sandbox"] });
   const context = await browser.newContext({ storageState, locale: "en-US" });
-  const page = await context.newPage();
+  page = await context.newPage();
   await page.goto(FIND_HUB_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
   if (/accounts\.google\.com/.test(page.url())) {
     throw new Error("Google session expired; refresh AUTH_STATE_B64");
@@ -90,7 +112,7 @@ try {
     console.log(JSON.stringify({ ok: true, checks, status: "ready" }));
   }
 } catch (error) {
-  console.error(JSON.stringify({ ok: false, checks, error: error.message }));
+  console.error(JSON.stringify({ ok: false, checks, page_state: await safePageState(page), error: error.message }));
   process.exitCode = 1;
 } finally {
   if (browser) await browser.close();
