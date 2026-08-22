@@ -60,6 +60,10 @@ if ($LASTEXITCODE -ne 0) { throw 'Failed to set SHEET_ENDPOINT.' }
 $sheetSecret | gh secret set SHEET_SECRET --repo $repo
 if ($LASTEXITCODE -ne 0) { throw 'Failed to set SHEET_SECRET.' }
 
-Write-Host 'Find Hub profile is authenticated locally and sheet secrets are configured.' -ForegroundColor Green
-Write-Host 'The scheduled workflow must run on this same Windows machine through a GitHub self-hosted runner labeled findhub.' -ForegroundColor Yellow
+$runnerSetup = Join-Path $PSScriptRoot 'setup-self-hosted-runner.ps1'
+& $runnerSetup
+if ($LASTEXITCODE -ne 0) { throw 'Self-hosted runner setup failed.' }
+
+Write-Host 'Find Hub is configured to run through GitHub Actions on this same Windows device.' -ForegroundColor Green
+Write-Host 'Keep this Windows account signed in and prevent the computer from sleeping when continuous collection is required.' -ForegroundColor Yellow
 Read-Host 'Press Enter to close'
