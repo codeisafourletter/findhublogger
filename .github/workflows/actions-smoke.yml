@@ -1,6 +1,8 @@
 name: Actions smoke
 
 on:
+  schedule:
+    - cron: "*/5 * * * *"
   push:
     branches:
       - main
@@ -19,6 +21,6 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh issue edit 4 --repo "$GITHUB_REPOSITORY" --body "Minimal Actions smoke: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+          gh issue edit 4 --repo "$GITHUB_REPOSITORY" --body "Minimal Actions $GITHUB_EVENT_NAME: $(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
           Run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
