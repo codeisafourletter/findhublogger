@@ -4,16 +4,37 @@ on:
   schedule:
     - cron: "*/5 * * * *"
   workflow_dispatch:
+  pull_request:
+    paths:
+      - "cloud/**"
+      - ".github/workflows/findhub-every-10-minutes.yml"
 
 permissions:
   contents: read
 
 concurrency:
-  group: findhub-collector
+  group: findhub-collector-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
+  smoke:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    defaults:
+      run:
+        working-directory: cloud
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --omit=dev --no-audit --no-fund
+      - name: Verify runner Chrome
+        run: node --input-type=module -e 'import { chromium } from "playwright-core"; const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true, args: ["--no-sandbox"] }); const page = await browser.newPage(); await page.goto("data:text/html,ok"); await browser.close(); console.log("runner chrome ok");'
+
   collect:
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     timeout-minutes: 8
     defaults:
