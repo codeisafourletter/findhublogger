@@ -1,12 +1,16 @@
 import { chromium } from "playwright-core";
+import { fileURLToPath } from "node:url";
 import { coordinatesFromHref, detailsFromLines } from "./collector-core.mjs";
+import { loadAuthState, saveAuthState } from "./auth-state-store.mjs";
 
 const FIND_HUB_URL = process.env.FIND_HUB_URL || "https://www.google.com/android/find/people";
 const TARGET_PERSON = process.env.TARGET_PERSON || "Meme";
 const SHEET_ENDPOINT = required("SHEET_ENDPOINT");
 const SHEET_SECRET = required("SHEET_SECRET");
 const AUTH_STATE_B64 = required("AUTH_STATE_B64");
+const AUTH_STATE_KEY_B64 = required("AUTH_STATE_KEY_B64");
 const CHROME_BIN = process.env.CHROME_BIN || "/usr/bin/google-chrome";
+const ENCRYPTED_AUTH_PATH = fileURLToPath(new URL("./.auth/auth-state.enc", import.meta.url));
 
 function required(name) {
   const value = process.env[name];
@@ -14,18 +18,22 @@ function required(name) {
   return value;
 }
 
-const storageState = JSON.parse(Buffer.from(AUTH_STATE_B64, "base64").toString("utf8"));
+const storageState = await loadAuthState({ encryptedPath: ENCRYPTED_AUTH_PATH, encodedKey: AUTH_STATE_KEY_B64, fallbackBase64: AUTH_STATE_B64 });
 const browser = await chromium.launch({ executablePath: CHROME_BIN, headless: true, args: ["--disable-dev-shm-usage", "--no-sandbox"] });
 let page;
+let context;
+let authenticated = false;
 
 try {
-  const context = await browser.newContext({ storageState, locale: "en-US" });
+  context = await browser.newContext({ storageState, locale: "en-US" });
   page = await context.newPage();
   await page.goto(FIND_HUB_URL, { waitUntil: "domcontentloaded", timeout: 60000 });
-  if (/accounts\.google\.com/.test(page.url())) throw new Error("Google session expired; refresh AUTH_STATE_B64");
+  const signedOut = /accounts\.google\.com/.test(page.url()) || await page.getByText("Sign in", { exact: true }).first().isVisible().catch(() => false);
+  if (signedOut) throw new Error("Google session expired; run npm run auth and refresh AUTH_STATE_B64 once");
 
   const card = page.locator('[role="button"]').filter({ hasText: TARGET_PERSON }).first();
   await card.waitFor({ state: "visible", timeout: 30000 });
+  authenticated = true;
   if (/Location not available/i.test(await card.innerText())) {
     console.log(JSON.stringify({ ok: true, appended: 0, reason: "Location not available" }));
   } else {
@@ -42,6 +50,7 @@ try {
     if (!result.ok) throw new Error(result.error || "Sheet endpoint rejected the record");
     console.log(JSON.stringify({ ok: true, appended: result.appended ?? 1, captured_at: record.captured_at }));
   }
+  await saveAuthState({ state: await context.storageState({ indexedDB: true }), encryptedPath: ENCRYPTED_AUTH_PATH, encodedKey: AUTH_STATE_KEY_B64 });
 } catch (error) {
   if (page) {
     const title = await page.title().catch(() => "");
@@ -51,5 +60,6 @@ try {
   }
   throw error;
 } finally {
+  if (!authenticated) console.error("AUTH_STATE_NOT_UPDATED");
   await browser.close();
 }

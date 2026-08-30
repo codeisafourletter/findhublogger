@@ -2,5 +2,6 @@ node_modules/
 outputs/
 cloud/node_modules/
 cloud/auth-state.json
+cloud/.auth/
 cloud/chrome-auth-profile/
 cloud/.env

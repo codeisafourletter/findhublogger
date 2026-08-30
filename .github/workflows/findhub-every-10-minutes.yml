@@ -24,11 +24,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Restore encrypted rolling auth state
+        uses: actions/cache@v4
+        with:
+          path: cloud/.auth/auth-state.enc
+          key: findhub-auth-${{ github.run_id }}
+          restore-keys: |
+            findhub-auth-
       - run: npm install --omit=dev --no-audit --no-fund
       - name: Collect Find Hub location
         run: node run-once.mjs
         env:
           AUTH_STATE_B64: ${{ secrets.AUTH_STATE_B64 }}
+          AUTH_STATE_KEY_B64: ${{ secrets.AUTH_STATE_KEY_B64 }}
           SHEET_ENDPOINT: ${{ secrets.SHEET_ENDPOINT }}
           SHEET_SECRET: ${{ secrets.SHEET_SECRET }}
           TARGET_PERSON: Meme
