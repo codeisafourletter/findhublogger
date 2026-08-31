@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 
 const cloudDir = fileURLToPath(new URL("./", import.meta.url));
+const targetPerson = process.env.TARGET_PERSON || "Meme";
 const savedProfileDir = join(cloudDir, "chrome-auth-profile");
 const launchOptions = {
   channel: "chrome", headless: false, locale: "en-US",
@@ -22,9 +23,11 @@ await page.goto("https://www.google.com/android/find/people");
 console.log("Sign in yourself. When the Find Hub People page is visible, return here and press Enter.");
 process.stdin.resume();
 await new Promise(resolve => process.stdin.once("data", resolve));
-if (/accounts\.google\.com/.test(page.url())) {
+const signedOut = /accounts\.google\.com/.test(page.url()) || await page.getByText("Sign in", { exact: true }).first().isVisible().catch(() => false);
+const targetVisible = await page.locator('[role="button"]').filter({ hasText: targetPerson }).first().isVisible().catch(() => false);
+if (signedOut || !targetVisible) {
   await context.close();
-  throw new Error("Sign-in was not completed");
+  throw new Error(`Sign-in was not completed: Find Hub must show ${targetPerson} before authentication can be saved`);
 }
 await context.storageState({ path: fileURLToPath(new URL("./auth-state.json", import.meta.url)), indexedDB: true });
 await context.close();
