@@ -21,12 +21,12 @@ jobs:
       run:
         working-directory: cloud
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
       - name: Restore encrypted rolling auth state
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: cloud/.auth/auth-state.enc
           key: findhub-auth-${{ github.run_id }}
