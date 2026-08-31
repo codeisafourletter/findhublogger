@@ -3,5 +3,5 @@ outputs/
 cloud/node_modules/
 cloud/auth-state.json
 cloud/.auth/
-cloud/chrome-auth-profile/
+cloud/chrome-auth-profile*/
 cloud/.env

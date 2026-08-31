@@ -3,6 +3,7 @@ name: Find Hub collector
 "on":
   workflow_dispatch: {}
   schedule:
+    # Offset from the top of the minute to reduce GitHub scheduler congestion.
     - cron: "2/5 * * * *"
 
 permissions:
